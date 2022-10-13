@@ -81,7 +81,7 @@ const postSignIn = async (req, res) => {
 
 		const token = uuid();
 		await connection.query(
-			'INSERT INTO session (userId, token) VALUES ($1, $2);',
+			'INSERT INTO session ("userId", token) VALUES ($1, $2);',
 			[existe.rows[0].id, token]
 		);
 

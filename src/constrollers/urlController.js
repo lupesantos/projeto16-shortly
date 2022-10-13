@@ -39,10 +39,56 @@ const postUrl = async (req, res) => {
 		let shortUrl = req.body;
 		shortUrl = nanoid();
 
+		const userId = await connection.query(
+			'SELECT session."userId" FROM session WHERE token = $1 ;',
+			[token]
+		);
+
+		console.log(userId.rows[0].userId);
+
+		await connection.query(
+			'INSERT INTO links ("userId", url, "shortUrl") VALUES ($1, $2, $3);',
+			[userId.rows[0].userId, url, shortUrl]
+		);
+
 		res.status(201).send(shortUrl);
 	} catch (error) {
 		console.log(error);
 	}
 };
 
-export { postUrl };
+const getUrlById = async (req, res) => {
+	const { id } = req.params;
+
+	const urlById = await connection.query(
+		'SELECT links.id, links."shortUrl", links.url FROM links WHERE id = $1;',
+		[id]
+	);
+
+	if (urlById.rows.length === 0) {
+		return res.sendStatus(404);
+	}
+
+	res.status(200).send(urlById.rows[0]);
+};
+
+const getUrlOpen = async (req, res) => {
+	const { shortUrl } = req.params;
+	console.log(shortUrl);
+
+	const url = await connection.query(
+		'SELECT links.url, links.id FROM links WHERE "shortUrl" = $1',
+		[shortUrl]
+	);
+
+	if (url.rows.length === 0) {
+		return res.sendStatus(404);
+	}
+
+	await connection.query('INSERT INTO visits ("urlId") VALUES ($1);', [
+		url.rows[0].id,
+	]);
+	res.redirect(url.rows[0].url);
+};
+
+export { postUrl, getUrlById, getUrlOpen };
