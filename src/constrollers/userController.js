@@ -85,10 +85,94 @@ const postSignIn = async (req, res) => {
 			[existe.rows[0].id, token]
 		);
 
-		res.status(200).send(token);
+		res.status(200).send({ token });
 	} catch (error) {
 		console.log(error);
 	}
 };
 
-export { postSignUp, postSignIn };
+const getRanking = async (req, res) => {
+	const ranking = await connection.query(
+		`SELECT
+			"userId",
+			name,
+			COUNT("userId") AS "linksCount",
+    		SUM("viewCount") AS "visitCount"
+  		FROM
+			(SELECT 
+				users.id AS "userId", 
+    			users.name, 
+    			links.id AS "urlId", 
+    			COUNT(links.id) AS "viewCount"
+			FROM users 
+			LEFT JOIN links 
+      		  ON users.id = links."userId" 
+    		LEFT JOIN visits 
+      		  on links.id = visits."urlId"
+			GROUP BY users.id, links.id) AS t1 
+		GROUP BY t1.name, t1."userId"
+		ORDER BY "visitCount" DESC, 
+		"linksCount" DESC LIMIT 10;`
+	);
+
+	res.status(200).send(ranking.rows);
+};
+
+const getMe = async (req, res) => {
+	if (!req.headers.authorization) {
+		return res.sendStatus(401);
+	}
+	const token = req.headers.authorization?.replace('Bearer ', '');
+	const existe = await connection.query(
+		'SELECT * FROM session WHERE token = $1;',
+		[token]
+	);
+
+	try {
+		if (existe.rows.length === 0) {
+			return res.sendStatus(401);
+		}
+
+		const me = await connection.query(
+			`SELECT
+				users.id,
+				users.name,
+				COUNT(users.id) AS "visitCount"
+	   		FROM users
+	   		JOIN session
+		 	  ON users.id = session."userId"
+	   		JOIN links
+			  ON users.id = links."userId"
+	   		JOIN visits
+			  ON visits."urlId" = links.id
+		 	WHERE users.id = $1
+	   		GROUP BY users.id
+		;`,
+			[existe.rows[0].userId]
+		);
+
+		const shortenedUrls = await connection.query(
+			`SELECT 
+				links.id AS id, 
+				links."shortUrl" AS "shortUrl", 
+				links.url AS url, 
+				COUNT(links.id) AS "visitCount"
+			FROM users 
+			JOIN links 
+			  ON users.id = links."userId" 
+			JOIN visits 
+			  on links.id = visits."urlId"
+			WHERE users.id = $1
+			GROUP BY users.id, links.id
+		;`,
+			[existe.rows[0].userId]
+		);
+		me.rows[0].shortenedUrls = shortenedUrls.rows;
+
+		res.status(200).send(me.rows[0]);
+	} catch (error) {
+		console.log(error);
+	}
+};
+
+export { postSignUp, postSignIn, getRanking, getMe };

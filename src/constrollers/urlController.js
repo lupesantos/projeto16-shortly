@@ -51,7 +51,7 @@ const postUrl = async (req, res) => {
 			[userId.rows[0].userId, url, shortUrl]
 		);
 
-		res.status(201).send(shortUrl);
+		res.status(201).send({ shortUrl });
 	} catch (error) {
 		console.log(error);
 	}
@@ -91,4 +91,46 @@ const getUrlOpen = async (req, res) => {
 	res.redirect(url.rows[0].url);
 };
 
-export { postUrl, getUrlById, getUrlOpen };
+const deleteUrlById = async (req, res) => {
+	if (!req.headers.authorization) {
+		return res.sendStatus(401);
+	}
+	const { id } = req.params;
+	const token = req.headers.authorization?.replace('Bearer ', '');
+	const existe = await connection.query(
+		'SELECT * FROM session WHERE token = $1;',
+		[token]
+	);
+	const existeLink = await connection.query(
+		'SELECT * FROM links WHERE id = $1;',
+		[id]
+	);
+
+	try {
+		if (existeLink.rows.length === 0) {
+			return res.sendStatus(404);
+		}
+		if (existe.rows.length === 0) {
+			return res.sendStatus(401);
+		}
+
+		const pertence = await connection.query(
+			'SELECT session.token FROM session JOIN links on links."userId" = session."userId" WHERE links.id = $1;',
+			[id]
+		);
+		console.log(pertence.rows[0].token);
+		console.log(token);
+
+		if (token !== pertence.rows[0].token) {
+			res.sendStatus(401);
+		}
+		await connection.query('DELETE FROM visits WHERE "urlId" = $1;', [id]);
+		await connection.query('DELETE FROM links WHERE id = $1;', [id]);
+
+		res.sendStatus(204);
+	} catch (error) {
+		console.log(error);
+	}
+};
+
+export { postUrl, getUrlById, getUrlOpen, deleteUrlById };
