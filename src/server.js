@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import categoriesRouter from '../src/routers/categoriesRouter.js';
 import userRouter from './routers/userRouter.js';
 import urlRouter from './routers/urlRouter.js';
 
@@ -8,7 +7,6 @@ const server = express();
 server.use(cors());
 server.use(express.json());
 
-server.use(categoriesRouter);
 server.use(userRouter);
 server.use(urlRouter);
 

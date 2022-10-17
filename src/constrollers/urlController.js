@@ -1,6 +1,10 @@
 import connection from '../postgres.js/postgres.js';
 import { nanoid } from 'nanoid';
 import Joi from 'joi';
+import {
+	findUserByToken,
+	selectUserIdByToken,
+} from '../repositories/urlRepositories.js';
 
 const urlSchema = Joi.object({
 	url: Joi.string()
@@ -19,10 +23,7 @@ const postUrl = async (req, res) => {
 	const { url } = req.body;
 	const token = req.headers.authorization?.replace('Bearer ', '');
 	const validation = urlSchema.validate({ url }, { abortEarly: false });
-	const existe = await connection.query(
-		'SELECT * FROM session WHERE token = $1;',
-		[token]
-	);
+	const existe = await findUserByToken(token);
 
 	try {
 		if (validation.error) {
@@ -39,13 +40,7 @@ const postUrl = async (req, res) => {
 		let shortUrl = req.body;
 		shortUrl = nanoid();
 
-		const userId = await connection.query(
-			'SELECT session."userId" FROM session WHERE token = $1 ;',
-			[token]
-		);
-
-		console.log(userId.rows[0].userId);
-
+		const userId = await selectUserIdByToken(token);
 		await connection.query(
 			'INSERT INTO links ("userId", url, "shortUrl") VALUES ($1, $2, $3);',
 			[userId.rows[0].userId, url, shortUrl]
