@@ -1,4 +1,3 @@
-import connection from '../postgres.js/postgres.js';
 import { v4 as uuid } from 'uuid';
 import bcrypt from 'bcrypt';
 import Joi from 'joi';
@@ -89,7 +88,6 @@ const postSignIn = async (req, res) => {
 
 const getRanking = async (req, res) => {
 	const ranking = await getRanking2();
-
 	res.status(200).send(ranking.rows);
 };
 
@@ -104,7 +102,6 @@ const getMe = async (req, res) => {
 		if (existe.rows.length === 0) {
 			return res.sendStatus(401);
 		}
-
 		const me = await findMe(existe);
 		const name = await findUserNameByToken(token);
 		if (me.rows.length === 0) {

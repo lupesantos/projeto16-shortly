@@ -1,8 +1,13 @@
-import connection from '../postgres.js/postgres.js';
 import { nanoid } from 'nanoid';
 import Joi from 'joi';
 import {
+	deleteUrlById2,
 	findUserByToken,
+	insertShortLink,
+	inserUrlInVisits,
+	pertenceLinkToUser,
+	selectLinkById,
+	selectUrlByShortUrl,
 	selectUserIdByToken,
 } from '../repositories/urlRepositories.js';
 
@@ -19,7 +24,6 @@ const postUrl = async (req, res) => {
 	if (!req.headers.authorization) {
 		return res.sendStatus(401);
 	}
-
 	const { url } = req.body;
 	const token = req.headers.authorization?.replace('Bearer ', '');
 	const validation = urlSchema.validate({ url }, { abortEarly: false });
@@ -41,10 +45,7 @@ const postUrl = async (req, res) => {
 		shortUrl = nanoid();
 
 		const userId = await selectUserIdByToken(token);
-		await connection.query(
-			'INSERT INTO links ("userId", url, "shortUrl") VALUES ($1, $2, $3);',
-			[userId.rows[0].userId, url, shortUrl]
-		);
+		await insertShortLink(userId, url, shortUrl);
 
 		res.status(201).send({ shortUrl });
 	} catch (error) {
@@ -54,11 +55,7 @@ const postUrl = async (req, res) => {
 
 const getUrlById = async (req, res) => {
 	const { id } = req.params;
-
-	const urlById = await connection.query(
-		'SELECT links.id, links."shortUrl", links.url FROM links WHERE id = $1;',
-		[id]
-	);
+	const urlById = await selectLinkById(id);
 
 	if (urlById.rows.length === 0) {
 		return res.sendStatus(404);
@@ -69,20 +66,13 @@ const getUrlById = async (req, res) => {
 
 const getUrlOpen = async (req, res) => {
 	const { shortUrl } = req.params;
-	console.log(shortUrl);
-
-	const url = await connection.query(
-		'SELECT links.url, links.id FROM links WHERE "shortUrl" = $1',
-		[shortUrl]
-	);
+	const url = await selectUrlByShortUrl(shortUrl);
 
 	if (url.rows.length === 0) {
 		return res.sendStatus(404);
 	}
 
-	await connection.query('INSERT INTO visits ("urlId") VALUES ($1);', [
-		url.rows[0].id,
-	]);
+	await inserUrlInVisits(url);
 	res.redirect(url.rows[0].url);
 };
 
@@ -92,14 +82,8 @@ const deleteUrlById = async (req, res) => {
 	}
 	const { id } = req.params;
 	const token = req.headers.authorization?.replace('Bearer ', '');
-	const existe = await connection.query(
-		'SELECT * FROM session WHERE token = $1;',
-		[token]
-	);
-	const existeLink = await connection.query(
-		'SELECT * FROM links WHERE id = $1;',
-		[id]
-	);
+	const existe = await findUserByToken(token);
+	const existeLink = await selectLinkById(id);
 
 	try {
 		if (existeLink.rows.length === 0) {
@@ -108,19 +92,12 @@ const deleteUrlById = async (req, res) => {
 		if (existe.rows.length === 0) {
 			return res.sendStatus(401);
 		}
-
-		const pertence = await connection.query(
-			'SELECT session.token FROM session JOIN links on links."userId" = session."userId" WHERE links.id = $1;',
-			[id]
-		);
-		console.log(pertence.rows[0].token);
-		console.log(token);
+		const pertence = await pertenceLinkToUser(id);
 
 		if (token !== pertence.rows[0].token) {
-			res.sendStatus(401);
+			return res.sendStatus(401);
 		}
-		await connection.query('DELETE FROM visits WHERE "urlId" = $1;', [id]);
-		await connection.query('DELETE FROM links WHERE id = $1;', [id]);
+		await deleteUrlById2(id);
 
 		res.sendStatus(204);
 	} catch (error) {
